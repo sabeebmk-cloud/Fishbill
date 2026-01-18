@@ -17,7 +17,7 @@ th{background:#eee}
 .section{background:#fff;padding:12px;margin-top:15px;border-radius:8px}
 .actions button{padding:4px 8px;margin:2px;font-size:14px}
 @media print{
-  button,.section:not(.print),#searchDate,#searchBtn,#monthPick,#monthBtn{display:none}
+  button,.section:not(.print){display:none}
   body{background:#fff}
 }
 </style>
@@ -43,12 +43,12 @@ th{background:#eee}
 <input id="newFish" placeholder="Add New Fish (Malayalam)" />
 <button id="addFishBtn" class="secondary">Add Fish</button>
 <input id="weight" placeholder="Weight (Kg)" type="number" />
-<input id="purchase" placeholder="Price per Kg" type="number" />
+<input id="purchase" placeholder="Purchase Price per Kg" type="number" />
 <button id="addItemBtn">Add Item</button>
 </div>
 
 <table class="print">
-<thead><tr><th>Item</th><th>Weight</th><th>Price</th><th>Total</th><th>Actions</th></tr></thead>
+<thead><tr><th>Item</th><th>Weight</th><th>Price</th><th>Total</th><th>Cost / Kg</th><th>Actions</th></tr></thead>
 <tbody id="list"></tbody>
 </table>
 
@@ -65,32 +65,6 @@ th{background:#eee}
 </div>
 
 <button id="saveBillBtn">Save Bill & PDF</button>
-<div class="section">
-  <h3>Manage Lists</h3>
-
-  <b>Shops</b>
-  <select id="shopManage"></select>
-  <input id="shopEdit" placeholder="Edit shop name">
-  <button id="updateShop" class="secondary">Update</button>
-  <button id="deleteShop" class="secondary">Delete</button>
-
-  <hr>
-
-  <b>Purchasers</b>
-  <select id="purchaserManage"></select>
-  <input id="purchaserEdit" placeholder="Edit purchaser name">
-  <button id="updatePurchaser" class="secondary">Update</button>
-  <button id="deletePurchaser" class="secondary">Delete</button>
-
-  <hr>
-
-  <b>Items</b>
-  <select id="fishManage"></select>
-  <input id="fishEdit" placeholder="Edit fish name">
-  <button id="updateFish" class="secondary">Update</button>
-  <button id="deleteFish" class="secondary">Delete</button>
-</div>
-
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -127,25 +101,37 @@ document.addEventListener('DOMContentLoaded', function() {
   let additionalExpense = 0;
 
   function calc(){
-    let sum = 0;
+    let itemsSum = 0;
     document.querySelectorAll('#list tr').forEach(r=>{
-      sum += parseFloat(r.children[3].innerText.replace('₹','')) || 0;
+      itemsSum += parseFloat(r.querySelector('.itemTotal').innerText.replace('₹','')) || 0;
     });
-    itemsTotalSpan.innerText = sum.toFixed(2);
+    itemsTotalSpan.innerText = itemsSum.toFixed(2);
     expenseTotalSpan.innerText = additionalExpense.toFixed(2);
-    grandSpan.innerText = (sum + additionalExpense).toFixed(2);
+
+    document.querySelectorAll('#list tr').forEach(r=>{
+      const w = parseFloat(r.children[1].innerText)||0;
+      const itemTotal = parseFloat(r.querySelector('.itemTotal').innerText.replace('₹',''))||0;
+      let cost = 0;
+      if(w>0 && itemsSum>0){
+        const itemExpense = itemTotal * (additionalExpense / itemsSum);
+        cost = (itemTotal + itemExpense) / w;
+      }
+      r.querySelector('.itemCost').innerText = cost.toFixed(2);
+    });
+
+    grandSpan.innerText = (itemsSum + additionalExpense).toFixed(2);
   }
 
   function addItemRow(fish, w, p){
     const t = w * p;
     const row = document.createElement('tr');
-    row.innerHTML = `<td contenteditable>${fish}</td><td contenteditable>${w}</td><td contenteditable>${p}</td><td>₹ ${t.toFixed(2)}</td><td class="actions"><button class="editBtn">Update</button><button class="delBtn">Delete</button></td>`;
+    row.innerHTML = `<td contenteditable>${fish}</td><td contenteditable>${w}</td><td contenteditable>${p}</td><td class="itemTotal">₹ ${t.toFixed(2)}</td><td class="itemCost">0</td><td class="actions"><button class="editBtn">Update</button><button class="delBtn">Delete</button></td>`;
     list.appendChild(row);
 
     row.querySelector('.editBtn').onclick = ()=>{
       const w2 = parseFloat(row.children[1].innerText)||0;
       const p2 = parseFloat(row.children[2].innerText)||0;
-      row.children[3].innerText = '₹ ' + (w2*p2).toFixed(2);
+      row.querySelector('.itemTotal').innerText = '₹ ' + (w2*p2).toFixed(2);
       calc();
     };
     row.querySelector('.delBtn').onclick = ()=>{row.remove(); calc();};
@@ -181,67 +167,12 @@ document.addEventListener('DOMContentLoaded', function() {
     bills.push({billNo:billCounter, shop:shopInput.value, purchaser:purchaserInput.value, date:dateInput.value, total:parseFloat(grandSpan.innerText)});
     localStorage.setItem('bills', JSON.stringify(bills));
     if(shopInput.value && !shops.includes(shopInput.value)){
-      shops.push(shopInput.value);
-      localStorage.setItem('shops', JSON.stringify(shops));
+      shops.push(shopInput.value); localStorage.setItem('shops', JSON.stringify(shops));
     }
-function refreshManagers(){
-  document.getElementById('shopManage').innerHTML =
-    shops.map(s=>`<option>${s}</option>`).join('');
-  document.getElementById('purchaserManage').innerHTML =
-    purchasers.map(p=>`<option>${p}</option>`).join('');
-  document.getElementById('fishManage').innerHTML =
-    fishList.map(f=>`<option>${f}</option>`).join('');
-}
-refreshManagers();
-
-document.getElementById('updateShop').onclick = ()=>{
-  const i = shopManage.selectedIndex;
-  if(i<0) return;
-  shops[i] = document.getElementById('shopEdit').value;
-  localStorage.setItem('shops', JSON.stringify(shops));
-  refreshManagers();
-};
-
-document.getElementById('deleteShop').onclick = ()=>{
-  shops.splice(shopManage.selectedIndex,1);
-  localStorage.setItem('shops', JSON.stringify(shops));
-  refreshManagers();
-};
-
-document.getElementById('updatePurchaser').onclick = ()=>{
-  const i = purchaserManage.selectedIndex;
-  purchasers[i] = document.getElementById('purchaserEdit').value;
-  localStorage.setItem('purchasers', JSON.stringify(purchasers));
-  refreshManagers();
-};
-
-document.getElementById('deletePurchaser').onclick = ()=>{
-  purchasers.splice(purchaserManage.selectedIndex,1);
-  localStorage.setItem('purchasers', JSON.stringify(purchasers));
-  refreshManagers();
-};
-
-document.getElementById('updateFish').onclick = ()=>{
-  const i = fishManage.selectedIndex;
-  fishList[i] = document.getElementById('fishEdit').value;
-  localStorage.setItem('fishList', JSON.stringify(fishList));
-  renderFish();
-  refreshManagers();
-};
-
-document.getElementById('deleteFish').onclick = ()=>{
-  fishList.splice(fishManage.selectedIndex,1);
-  localStorage.setItem('fishList', JSON.stringify(fishList));
-  renderFish();
-  refreshManagers();
-};
-
     if(purchaserInput.value && !purchasers.includes(purchaserInput.value)){
-      purchasers.push(purchaserInput.value);
-      localStorage.setItem('purchasers', JSON.stringify(purchasers));
+      purchasers.push(purchaserInput.value); localStorage.setItem('purchasers', JSON.stringify(purchasers));
     }
-    billCounter++;
-    localStorage.setItem('billCounter', billCounter);
+    billCounter++; localStorage.setItem('billCounter', billCounter);
     window.print();
   };
 });
